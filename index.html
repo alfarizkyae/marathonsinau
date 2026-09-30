@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Olympiad Tutoring Recordings</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1f2933;--mute:#66707a;--line:#e3e5e8;--acc:#2b4a6f;--acc-ink:#fff;--tag:#eef1f4;--danger:#9b2c2c}
+@media(prefers-color-scheme:dark){:root{--bg:#15181c;--card:#1d2126;--ink:#e6e8ea;--mute:#98a1ab;--line:#2c3238;--acc:#8fb0d6;--acc-ink:#10151b;--tag:#262c33;--danger:#e08a8a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+h1{font-size:22px;margin:0 0 2px;font-weight:650}
+.sub{color:var(--mute);font-size:14px;margin:0}
+button,input,textarea{font:inherit;color:inherit}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:7px 14px;cursor:pointer}
+.btn:hover{border-color:var(--acc)}
+.btn.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.btn.sm{padding:3px 9px;font-size:13px}
+.btn.del{color:var(--danger)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center}
+.tools input[type=search]{flex:1;min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:13px}
+.chip[aria-pressed=true]{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.month{margin-top:28px}
+.month>h2{font-size:15px;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);font-weight:650}
+.month>h2 span{color:var(--mute);font-weight:400;margin-left:6px}
+.type{margin:14px 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.item .t{font-weight:600}
+.item .m{color:var(--mute);font-size:13px}
+.item .a{display:flex;gap:6px;align-items:center}
+a.open{color:var(--acc);text-decoration:none;border:1px solid var(--acc);border-radius:6px;padding:4px 12px;font-size:14px}
+a.open:hover{background:var(--acc);color:var(--acc-ink)}
+.empty{color:var(--mute);text-align:center;padding:48px 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;width:100%;max-width:440px}
+.box h3{margin:0 0 12px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}
+.box input,.box textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.err{color:var(--danger);font-size:13px;margin-top:8px;min-height:1em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div><h1>Olympiad Tutoring Recordings</h1><p class="sub">Session recordings, organised by month and type of tutoring.</p></div>
+<div id="auth"></div>
+</header>
+<div id="app"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* ====== FILL THESE TWO IN (Supabase dashboard > Project Settings > API) ====== */
+var SUPABASE_URL = "https://iddwwidteslkrjiecezl.supabase.co/rest/v1/";
+var SUPABASE_ANON_KEY = "sb_publishable_bXDlR8Y3gYavrBfuvyOTlg_F-335UX4";
+/* ============================================================================ */
+(function(){
+var db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+var rows=[],owner=false,filter='All',query='';
+var app=document.getElementById('app'),auth=document.getElementById('auth');
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function monthLabel(ym){var p=ym.split('-');return MONTHS[+p[1]-1]+' '+p[0]}
+function fmtDate(d){var p=d.split('-');return +p[2]+' '+MONTHS[+p[1]-1].slice(0,3)+' '+p[0]}
+function types(){var s={};rows.forEach(function(r){s[r.type]=1});return Object.keys(s).sort()}
+
+async function load(){
+  var r=await db.from('recordings').select('*').order('date',{ascending:false});
+  rows=r.data||[];render();
+}
+function renderAuth(){
+  auth.textContent='';
+  var b=el('button','btn',owner?'Log out':'Owner login');
+  b.onclick=owner?async function(){await db.auth.signOut()}:loginForm;
+  auth.appendChild(b);
+}
+function loginForm(){
+  var m=el('div','modal'),b=el('div','box');
+  b.appendChild(el('h3',null,'Owner login'));
+  b.appendChild(el('label',null,'Username (email)'));var u=el('input');u.type='email';u.autocomplete='username';b.appendChild(u);
+  b.appendChild(el('label',null,'Password'));var p=el('input');p.type='password';p.autocomplete='current-password';b.appendChild(p);
+  var err=el('div','err');b.appendChild(err);
+  var row=el('div','row'),c=el('button','btn','Cancel'),s=el('button','btn pri','Log in');
+  c.onclick=function(){m.remove()};
+  async function go(){
+    var r=await db.auth.signInWithPassword({email:u.value.trim(),password:p.value});
+    if(r.error){err.textContent='Wrong username or password.';return}
+    m.remove();
+  }
+  s.onclick=go;p.onkeydown=function(e){if(e.key==='Enter')go()};
+  row.appendChild(c);row.appendChild(s);b.appendChild(row);m.appendChild(b);document.body.appendChild(m);u.focus();
+}
+
+function render(){
+  app.textContent='';
+  var tools=el('div','tools'),q=el('input');q.type='search';q.placeholder='Search title or note';q.value=query;
+  q.oninput=function(){query=q.value;renderList()};tools.appendChild(q);
+  if(owner){var a=el('button','btn pri','+ Add recording');a.onclick=function(){form()};tools.appendChild(a)}
+  app.appendChild(tools);
+  if(types().length){var ch=el('div','tools');
+    ['All'].concat(types()).forEach(function(t){var c=el('button','chip',t);c.setAttribute('aria-pressed',t===filter);c.onclick=function(){filter=t;render()};ch.appendChild(c)});
+    app.appendChild(ch)}
+  var l=el('div');l.id='list';app.appendChild(l);renderList();
+}
+function renderList(){
+  var list=document.getElementById('list');list.textContent='';
+  var q=query.trim().toLowerCase();
+  var rs=rows.filter(function(r){return (filter==='All'||r.type===filter)&&(!q||(r.title+' '+(r.note||'')).toLowerCase().indexOf(q)>-1)});
+  if(!rs.length){list.appendChild(el('div','empty',rows.length?'No recordings match.':'No recordings have been added yet.'));return}
+  var byM={};rs.forEach(function(r){(byM[r.date.slice(0,7)]=byM[r.date.slice(0,7)]||[]).push(r)});
+  Object.keys(byM).sort().reverse().forEach(function(ym){
+    var sec=el('section','month'),h=el('h2',null,monthLabel(ym));h.appendChild(el('span',null,byM[ym].length+' recording'+(byM[ym].length>1?'s':'')));sec.appendChild(h);
+    var byT={};byM[ym].forEach(function(r){(byT[r.type]=byT[r.type]||[]).push(r)});
+    Object.keys(byT).sort().forEach(function(t){
+      sec.appendChild(el('div','type',t));
+      byT[t].forEach(function(r){
+        var it=el('div','item'),l=el('div');
+        l.appendChild(el('div','t',r.title));l.appendChild(el('div','m',fmtDate(r.date)+(r.note?' · '+r.note:'')));
+        var a=el('div','a'),o=el('a','open','Open recording');o.href=r.url;o.target='_blank';o.rel='noopener noreferrer';a.appendChild(o);
+        if(owner){
+          var e=el('button','btn sm','Edit');e.onclick=function(){form(r)};
+          var d=el('button','btn sm del','Delete');d.onclick=async function(){if(confirm('Delete this recording?')){await db.from('recordings').delete().eq('id',r.id);load()}};
+          a.appendChild(e);a.appendChild(d)}
+        it.appendChild(l);it.appendChild(a);sec.appendChild(it)});
+    });
+    list.appendChild(sec);
+  });
+}
+function form(r){
+  var m=el('div','modal'),b=el('div','box');
+  b.appendChild(el('h3',null,r?'Edit recording':'Add recording'));
+  function f(lbl,type,val,ph){b.appendChild(el('label',null,lbl));var i=el(type==='area'?'textarea':'input');if(type!=='area')i.type=type;else i.rows=2;i.value=val||'';if(ph)i.placeholder=ph;b.appendChild(i);return i}
+  var title=f('Title','text',r&&r.title,'e.g. Combinatorics – Session 4');
+  var type=f('Type of tutoring','text',r&&r.type,'e.g. Mathematics Olympiad');
+  var dl=el('datalist');dl.id='tl';types().forEach(function(t){var o=el('option');o.value=t;dl.appendChild(o)});type.setAttribute('list','tl');b.appendChild(dl);
+  var date=f('Date','date',r?r.date:new Date().toISOString().slice(0,10));
+  var url=f('Google Drive link','url',r&&r.url,'https://drive.google.com/...');
+  var note=f('Note (optional)','area',r&&r.note);
+  var err=el('div','err');b.appendChild(err);
+  var row=el('div','row'),c=el('button','btn','Cancel'),s=el('button','btn pri','Save');
+  c.onclick=function(){m.remove()};
+  s.onclick=async function(){
+    var u=url.value.trim();
+    if(!title.value.trim()||!type.value.trim()||!date.value){err.textContent='Title, type and date are required.';return}
+    if(!/^https?:\/\//i.test(u)){err.textContent='Enter a valid link starting with https://';return}
+    var rec={title:title.value.trim(),type:type.value.trim(),date:date.value,url:u,note:note.value.trim()};
+    var res=r?await db.from('recordings').update(rec).eq('id',r.id):await db.from('recordings').insert(rec);
+    if(res.error){err.textContent='Could not save: '+res.error.message;return}
+    m.remove();load();
+  };
+  row.appendChild(c);row.appendChild(s);b.appendChild(row);m.appendChild(b);document.body.appendChild(m);title.focus();
+}
+
+db.auth.onAuthStateChange(function(ev,session){owner=!!session;renderAuth();render()});
+renderAuth();load();
+})();
+</script>
+</body>
+</html>
