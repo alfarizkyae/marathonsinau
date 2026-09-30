@@ -87,7 +87,7 @@ function loginForm(){
   c.onclick=function(){m.remove()};
   async function go(){
     var r=await db.auth.signInWithPassword({email:u.value.trim(),password:p.value});
-    if(r.error){err.textContent='Wrong username or password.';return}
+    if(r.error){err.textContent='Login failed: '+r.error.message;return}
     m.remove();
   }
   s.onclick=go;p.onkeydown=function(e){if(e.key==='Enter')go()};
